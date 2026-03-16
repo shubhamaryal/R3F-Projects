@@ -2,20 +2,51 @@ import * as THREE from "three";
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
 import { useState, useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
+import { Float, Text, useGLTF } from "@react-three/drei";
 
 THREE.ColorManagement.legacyMode = false; // 3js and r3f use different type of color encoding and the result's color might be different so we use this to fix that issue
 
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
 
-const floor1Material = new THREE.MeshStandardMaterial({ color: "limegreen" });
-const floor2Material = new THREE.MeshStandardMaterial({ color: "greenyellow" });
-const obstacleMaterial = new THREE.MeshStandardMaterial({ color: "orangered" });
-const wallMaterial = new THREE.MeshStandardMaterial({ color: "slategrey" });
+const floor1Material = new THREE.MeshStandardMaterial({
+    color: "limegreen",
+    metalness: 0,
+    roughness: 0,
+});
+const floor2Material = new THREE.MeshStandardMaterial({
+    color: "greenyellow",
+    metalness: 0,
+    roughness: 0,
+});
+const obstacleMaterial = new THREE.MeshStandardMaterial({
+    color: "orangered",
+    metalness: 0,
+    roughness: 1,
+});
+const wallMaterial = new THREE.MeshStandardMaterial({
+    color: "slategrey",
+    metalness: 0,
+    roughness: 0,
+});
 
 export const BlockStart = ({ position = [0, 0, 0] }) => {
     return (
         <group position={position}>
+            <Float floatIntensity={0.25} rotationIntensity={0.25}>
+                <Text
+                    scale={0.35}
+                    maxWidth={0.25}
+                    lineHeight={0.75}
+                    textAlign="right"
+                    position={[0.65, 0.65, 0]}
+                    rotation-y={-0.25}
+                    font="/bebas-neue-v9-latin-regular.woff"
+                >
+                    Marble Race
+                    <meshBasicMaterial toneMapped={false} />
+                </Text>
+            </Float>
+
             <mesh
                 position={[0, -0.1, 0]}
                 receiveShadow
@@ -35,6 +66,14 @@ export const BlockEnd = ({ position = [0, 0, 0] }) => {
 
     return (
         <group position={position}>
+            <Text
+                font="/bebas-neue-v9-latin-regular.woff"
+                scale={1}
+                position={[0, 2.25, 2]}
+            >
+                FINISH
+                <meshBasicMaterial toneMapped={false} />
+            </Text>
             <mesh
                 position={[0, 0, 0]}
                 receiveShadow
@@ -230,6 +269,7 @@ const Bounds = ({ length = 1 }) => {
 export const Level = ({
     count = 5,
     types = [BlockSpinner, BlockAxe, BlockLimbo],
+    seed = 0,
 }) => {
     const blocks = useMemo(() => {
         const blocks = [];
@@ -241,7 +281,7 @@ export const Level = ({
         // There are 3 types of levels, and the type will have one of them using the random function, and then it will be pushed to the blocks array, and this will be done according to the count so that we will get random levels
 
         return blocks;
-    }, [count, types]);
+    }, [count, types, seed]);
 
     return (
         <>

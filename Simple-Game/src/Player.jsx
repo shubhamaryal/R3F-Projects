@@ -1,28 +1,62 @@
 import { useKeyboardControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { RigidBody } from "@react-three/rapier";
-import { useEffect, useRef } from "react";
+import { RigidBody, useRapier } from "@react-three/rapier";
+import { useState, useEffect, useRef } from "react";
+import * as THREE from "three";
+import useGame from "./stores/useGame";
 
 const Player = () => {
     const body = useRef();
 
     const [subscribeKeys, getKeys] = useKeyboardControls();
 
+    const { rapier, world } = useRapier();
+    const rapierWorld = world.raw();
+
+    const [smoothedCameraPosition] = useState(
+        () => new THREE.Vector3(10, 10, 10),
+    );
+    const [smoothedCameraTarget] = useState(() => new THREE.Vector3());
+
+    const start = useGame((state) => state.start);
+    const end = useGame((state) => state.end);
+    const restart = useGame((state) => state.restart);
+    const blocksCount = useGame((state) => state.blocksCount);
+
     const jump = () => {
         const origin = body.current.translation();
         origin.y -= 0.31;
         const direction = { x: 0, y: -1, z: 0 };
+        const ray = new rapier.Ray(origin, direction);
+        const hit = rapierWorld.castRay(ray, 10, true);
 
-        body.current.applyImpulse({ x: 0, y: 0.5, z: 0 });
+        if (hit.toi < 0.15) {
+            body.current.applyImpulse({ x: 0, y: 0.5, z: 0 });
+        }
+    };
+
+    const reset = () => {
+        body.current.setTranslation({ x: 0, y: 1, z: 0 });
+        body.current.setLinvel({ x: 0, y: 0, z: 0 });
+        body.current.setAngvel({ x: 0, y: 0, z: 0 });
     };
 
     useEffect(() => {
+        const unsubscribeReset = useGame.subscribe(
+            (state) => state.phase,
+            (value) => {
+                if (value === "ready") {
+                    reset();
+                }
+            },
+        );
+
         /* 
             The subscribeKeys has 2 functions.
             - First function is known as SELECTOR and is used to listen to something. Eg: It listens jump, forward, backward, or any change on the keyboard. And if any changes occur then it will call the second function.
             - In our code, the SELECTOR is listening to the jump key and when the jump key is pressed i.e. the state changes and it will call the second function and inside it there is jump() funtion which applies Impulse
         */
-        subscribeKeys(
+        const unsubscribeJump = subscribeKeys(
             (state) => {
                 return state.jump;
             },
@@ -32,8 +66,21 @@ const Player = () => {
                 }
             },
         );
+
+        const unsubscribeAny = subscribeKeys(() => {
+            start();
+        });
+
+        return () => {
+            unsubscribeJump();
+            unsubscribeAny();
+            unsubscribeReset();
+        };
     }, []);
 
+    /**
+     * Controls
+     */
     useFrame((state, delta) => {
         const { forward, leftward, backward, rightward } = getKeys();
 
@@ -62,6 +109,36 @@ const Player = () => {
 
         body.current.applyImpulse(impulse);
         body.current.applyTorqueImpulse(torque);
+
+        /**
+         * Camera
+         */
+        const bodyPosition = body.current.translation();
+        const cameraPosition = new THREE.Vector3();
+        cameraPosition.copy(bodyPosition);
+        cameraPosition.z += 2.25;
+        cameraPosition.y += 0.65;
+
+        const cameraTarget = new THREE.Vector3();
+        cameraTarget.copy(bodyPosition);
+        cameraTarget.y += 0.25;
+
+        smoothedCameraPosition.lerp(cameraPosition, 5 * delta);
+        smoothedCameraTarget.lerp(cameraTarget, 5 * delta);
+
+        state.camera.position.copy(smoothedCameraPosition);
+        state.camera.lookAt(smoothedCameraTarget);
+
+        /**
+         * Phases
+         */
+        if (bodyPosition.z < -(blocksCount * 4 + 2)) {
+            end();
+        }
+
+        if (bodyPosition.y < -4) {
+            restart();
+        }
     });
 
     return (
